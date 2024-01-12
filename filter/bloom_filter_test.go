@@ -1,6 +1,7 @@
 package filter
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/spaolacci/murmur3"
@@ -61,7 +62,7 @@ func Test_BloomFilter_Hash(t *testing.T) {
 		uint8(2),
 	}
 
-	if got := bf.Hash(); string(got) != string(expect) {
+	if got := bf.Hash(); !bytes.Equal(got, expect) {
 		t.Errorf("expect: %v, got: %v", expect, got)
 	}
 }

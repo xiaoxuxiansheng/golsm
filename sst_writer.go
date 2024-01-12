@@ -6,26 +6,25 @@ import (
 	"os"
 	"path"
 
-	"github.com/xiaoxuxiansheng/golsm/filter"
 	"github.com/xiaoxuxiansheng/golsm/util"
 )
 
+// sstable 中用于快速检索 block 的索引
 type Index struct {
-	Key             []byte
-	PrevBlockOffset uint64
-	PrevBlockSize   uint64
+	Key             []byte // 索引的 key. 保证其 >= 前一个 block 最大 key； < 后一个 block 的最小 key
+	PrevBlockOffset uint64 // 索引前一个 block 起始位置在 sstable 中对应的 offset
+	PrevBlockSize   uint64 // 索引前一个 block 的大小，单位 byte
 }
 
 // 对应于 lsm tree 中的一个 sstable. 这是写入流程的视角
 type SSTWriter struct {
-	conf          *Config
+	conf          *Config           // 配置文件
 	dest          *os.File          // sstable 对应的磁盘文件
 	dataBuf       *bytes.Buffer     // 数据块缓冲区 key -> val
 	filterBuf     *bytes.Buffer     // 过滤器块缓冲区 prev block offset -> filter bit map
 	indexBuf      *bytes.Buffer     // 索引块缓冲区 index key -> prev block offset, prev block size
 	blockToFilter map[uint64][]byte // prev block offset -> filter bit map
 	index         []*Index          // index key -> prev block offset, prev block size
-	filter        filter.Filter     // 过滤器
 
 	dataBlock     *Block   // 数据块
 	filterBlock   *Block   // 过滤器块
@@ -43,13 +42,6 @@ func NewSSTWriter(file string, conf *Config) (*SSTWriter, error) {
 		return nil, err
 	}
 
-	_filter := conf.Filter
-	if _filter == nil {
-		if _filter, err = filter.NewBloomFilter(1024); err != nil {
-			return nil, err
-		}
-	}
-
 	return &SSTWriter{
 		conf:          conf,
 		dest:          dest,
@@ -57,7 +49,6 @@ func NewSSTWriter(file string, conf *Config) (*SSTWriter, error) {
 		filterBuf:     bytes.NewBuffer([]byte{}),
 		indexBuf:      bytes.NewBuffer([]byte{}),
 		blockToFilter: make(map[uint64][]byte),
-		filter:        _filter,
 		dataBlock:     NewBlock(conf),
 		filterBlock:   NewBlock(conf),
 		indexBlock:    NewBlock(conf),
@@ -110,7 +101,7 @@ func (s *SSTWriter) Append(key, value []byte) {
 	// 将数据写入到数据块中
 	s.dataBlock.Append(key, value)
 	// 将 key 添加到块的布隆过滤器中
-	s.filter.Add(key)
+	s.conf.Filter.Add(key)
 	// 记录一下最新的 key
 	s.prevKey = key
 
@@ -118,6 +109,10 @@ func (s *SSTWriter) Append(key, value []byte) {
 	if s.dataBlock.Size() >= s.conf.SSTDataBlockSize {
 		s.refreshBlock()
 	}
+}
+
+func (s *SSTWriter) Size() uint64 {
+	return uint64(s.dataBuf.Len())
 }
 
 func (s *SSTWriter) Close() {
@@ -142,18 +137,18 @@ func (s *SSTWriter) insertIndex(key []byte) {
 }
 
 func (s *SSTWriter) refreshBlock() {
-	if s.filter.KeyLen() == 0 {
+	if s.conf.Filter.KeyLen() == 0 {
 		return
 	}
 
 	s.prevBlockOffset = uint64(s.dataBuf.Len())
 	// 添加布隆过滤器 bitmap
-	filterBitmap := s.filter.Hash()
+	filterBitmap := s.conf.Filter.Hash()
 	s.blockToFilter[s.prevBlockOffset] = filterBitmap
 	n := binary.PutUvarint(s.assistScratch[0:], s.prevBlockOffset)
 	s.filterBlock.Append(s.assistScratch[:n], filterBitmap)
 	// 重置布隆过滤器
-	s.filter.Reset()
+	s.conf.Filter.Reset()
 
 	// 将 block 的数据添加到缓冲区
 	s.prevBlockSize, _ = s.dataBlock.FlushTo(s.dataBuf)

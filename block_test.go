@@ -7,7 +7,12 @@ import (
 )
 
 func Test_Block_ToBytes(t *testing.T) {
-	block := NewBlock(NewConfig("./"))
+	conf, err := NewConfig("./lsm")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	block := NewBlock(conf)
 	// 0 | 1 | 1 | a | b
 	block.Append([]byte("a"), []byte("b"))
 	// 0 | 1 | 1 | a | b | 0 | 1 | 1 | b | c
@@ -49,7 +54,7 @@ func Test_Block_ToBytes(t *testing.T) {
 	expect.Write(recordBuf[:n])
 	expect.Write([]byte{'e', 'e'})
 
-	if got := block.ToBytes(); string(got) != expect.String() {
+	if got := block.ToBytes(); !bytes.Equal(got, expect.Bytes()) {
 		t.Errorf("expect: %v, got: %v", expect, got)
 	}
 }

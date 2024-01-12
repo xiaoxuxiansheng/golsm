@@ -5,7 +5,11 @@ import (
 )
 
 func Test_SSTWriter(t *testing.T) {
-	conf := NewConfig("./", WithSSTDataBlockSize(16))
+	conf, err := NewConfig("./lsm", WithSSTDataBlockSize(16))
+	if err != nil {
+		t.Error(err)
+		return
+	}
 	sstWriter, err := NewSSTWriter("test.sst", conf)
 	if err != nil {
 		t.Error(err)
@@ -32,7 +36,7 @@ func Test_SSTWriter(t *testing.T) {
 		t.Error("miss filter key: 0")
 	}
 
-	if _, ok := blockToFilter[19]; !ok {
+	if _, ok := blockToFilter[16]; !ok {
 		t.Error("miss filter key: 19")
 	}
 
@@ -44,11 +48,11 @@ func Test_SSTWriter(t *testing.T) {
 		t.Errorf("invalid index0: %+v, key: %s", index[0], index[0].Key)
 	}
 
-	if string(index[1].Key) != "ab" || index[1].PrevBlockOffset != 0 || index[1].PrevBlockSize != 19 {
+	if string(index[1].Key) != "e" || index[1].PrevBlockOffset != 0 || index[1].PrevBlockSize != 16 {
 		t.Errorf("invalid index1: %+v", index[1])
 	}
 
-	if string(index[2].Key) != "ef" || index[2].PrevBlockOffset != 19 || index[1].PrevBlockSize != 19 {
+	if string(index[2].Key) != "ef" || index[2].PrevBlockOffset != 16 || index[1].PrevBlockSize != 16 {
 		t.Errorf("invalid index2: %+v", index[2])
 	}
 }

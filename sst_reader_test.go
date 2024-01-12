@@ -1,13 +1,18 @@
 package golsm
 
 import (
+	"bytes"
 	"fmt"
 	"testing"
 )
 
 func Test_SSTReader(t *testing.T) {
 	// 构造一个 sst writer 写入数据
-	conf := NewConfig("./", WithSSTDataBlockSize(16))
+	conf, err := NewConfig("./lsm", WithSSTDataBlockSize(16))
+	if err != nil {
+		t.Error(err)
+		return
+	}
 	sstWriter, err := NewSSTWriter("test_write_read.sst", conf)
 	if err != nil {
 		t.Error(err)
@@ -93,7 +98,7 @@ func assertFilterEqual(expect, got map[uint64][]byte) error {
 
 	for expectK, expectV := range expect {
 		gotV := got[expectK]
-		if string(expectV) != string(gotV) {
+		if !bytes.Equal(expectV, gotV) {
 			return fmt.Errorf("key: %d, expect v: %s, got v: %s", expectK, expectV, gotV)
 		}
 	}
@@ -107,7 +112,7 @@ func assertIndexEqual(expect, got []*Index) error {
 	}
 
 	for i := 0; i < len(expect); i++ {
-		if string(expect[i].Key) != string(got[i].Key) {
+		if !bytes.Equal(expect[i].Key, got[i].Key) {
 			return fmt.Errorf("index: %d, expect key: %s, got key: %s", i, expect[i].Key, got[i].Key)
 		}
 
@@ -128,11 +133,11 @@ func assertDataEqual(expect, got []*KV) error {
 	}
 
 	for i := 0; i < len(expect); i++ {
-		if string(expect[i].Key) != string(got[i].Key) {
+		if !bytes.Equal(expect[i].Key, got[i].Key) {
 			return fmt.Errorf("data: %d, data key: %s, got key: %s", i, expect[i].Key, got[i].Key)
 		}
 
-		if string(expect[i].Value) != string(got[i].Value) {
+		if !bytes.Equal(expect[i].Value, got[i].Value) {
 			return fmt.Errorf("data: %d, expect offset: %d, got offset: %d", i, expect[i].Value, got[i].Value)
 		}
 

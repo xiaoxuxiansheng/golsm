@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path"
-	"sync"
 )
 
 type KV struct {
@@ -16,15 +15,15 @@ type KV struct {
 	Value []byte
 }
 
+// 对应于 lsm tree 中的一个 sstable. 这是读取流程的视角
 type SSTReader struct {
-	lock         sync.RWMutex // 读写锁，保证临界资源并发安全
-	conf         *Config
-	src          *os.File
-	reader       *bufio.Reader
-	filterOffset uint64 // 过滤器块的起始偏移
-	filterSize   uint64 // 过滤器块的大小
-	indexOffset  uint64 // 索引块的起始偏移
-	indexSize    uint64 // 索引块的大小
+	conf         *Config       // 配置文件
+	src          *os.File      // 对应的文件
+	reader       *bufio.Reader // 读取文件的 reader
+	filterOffset uint64        // 过滤器块起始位置在 sstable 的 offset
+	filterSize   uint64        // 过滤器块的大小，单位 byte
+	indexOffset  uint64        // 索引块起始位置在 sstable 的 offset
+	indexSize    uint64        // 索引块的大小，单位 byte
 }
 
 func NewSSTReader(file string, conf *Config) (*SSTReader, error) {
@@ -38,6 +37,15 @@ func NewSSTReader(file string, conf *Config) (*SSTReader, error) {
 		src:    src,
 		reader: bufio.NewReader(src),
 	}, nil
+}
+
+func (s *SSTReader) Size() (uint64, error) {
+	if s.indexOffset == 0 {
+		if err := s.ReadFooter(); err != nil {
+			return 0, err
+		}
+	}
+	return s.indexOffset + s.indexSize, nil
 }
 
 func (s *SSTReader) Close() {
@@ -119,7 +127,7 @@ func (s *SSTReader) ReadData() ([]*KV, error) {
 		return nil, err
 	}
 
-	return s.readData(dataBlock)
+	return s.ReadBlockData(dataBlock)
 }
 
 func (s *SSTReader) ReadBlock(offset, size uint64) ([]byte, error) {
@@ -183,7 +191,7 @@ func (s *SSTReader) readIndex(block []byte) ([]*Index, error) {
 	return index, nil
 }
 
-func (s *SSTReader) readData(block []byte) ([]*KV, error) {
+func (s *SSTReader) ReadBlockData(block []byte) ([]*KV, error) {
 	var prevKey []byte
 	buf := bytes.NewBuffer(block)
 	var data []*KV

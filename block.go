@@ -9,8 +9,8 @@ import (
 )
 
 type Block struct {
-	conf       *Config
-	buffer     [30]byte      // 辅助填充数据的临时缓冲区
+	conf       *Config       // lsm tree 配置问津
+	buffer     [30]byte      // 临时缓冲区
 	record     *bytes.Buffer // 记录缓冲区
 	entriesCnt int           // kv 对数量
 	prevKey    []byte        // 最晚一笔写入的数据的 key
