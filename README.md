@@ -24,9 +24,9 @@ func Test_LSM_UseCase(t *testing.T) {
 	// 1 构造配置文件
 	conf, _ := NewConfig("./lsm", // lsm sstable 文件的存放目录
 		WithMaxLevel(7),           // 7层 lsm tree
-		WithSSTSize(2*1024),       // level 0 层，每个 sstable 的大小为 1M
-		WithSSTDataBlockSize(512), // sstable 中，每个 block 大小为 16KB
-		WithSSTNumPerLevel(2),     // 每个 level 存放 10 个 sstable 文件
+		WithSSTSize(1024*1024),       // level 0 层，每个 sstable 的大小为 1M
+		WithSSTDataBlockSize(16*1024), // sstable 中，每个 block 大小为 16KB
+		WithSSTNumPerLevel(10),     // 每个 level 存放 10 个 sstable 文件
 	)
 
 	// 2 创建一个 lsm tree 实例
