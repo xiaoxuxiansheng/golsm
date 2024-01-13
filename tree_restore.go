@@ -96,15 +96,30 @@ func getLevelSeqFromSSTFile(file string) (level int, seq int32) {
 // 读取 wal 还原出 memtable
 func (t *Tree) constructMemtable() error {
 	// 1 读 wal 目录，获取所有的 wal 文件
-	wals, _ := os.ReadDir(path.Join(t.conf.Dir, "walfile"))
+	raw, _ := os.ReadDir(path.Join(t.conf.Dir, "walfile"))
 
-	// 2 倘若 wal 目录不存在或者 wal 文件不存在，则构造一个新的 memtable
+	// 2 wal 文件除杂
+	var wals []fs.DirEntry
+	for _, entry := range raw {
+		if entry.IsDir() {
+			continue
+		}
+
+		// 要求文件必须为 .wal 类型
+		if !strings.HasSuffix(entry.Name(), ".wal") {
+			continue
+		}
+
+		wals = append(wals, entry)
+	}
+
+	// 3 倘若 wal 目录不存在或者 wal 文件不存在，则构造一个新的 memtable
 	if len(wals) == 0 {
 		t.newMemTable()
 		return nil
 	}
 
-	// 3 依次还原 memtable. 最晚一个 memtable 作为读写 memtable
+	// 4 依次还原 memtable. 最晚一个 memtable 作为读写 memtable
 	// 前置 memtable 作为只读 memtable，分别添加到内存 slice 和 channel 中.
 	return t.restoreMemTable(wals)
 }
