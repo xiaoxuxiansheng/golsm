@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -34,10 +35,10 @@ func Test_LSM_UseCase(t *testing.T) {
 func Test_LSM(t *testing.T) {
 	// 构造配置文件
 	conf, err := NewConfig("./lsm", // lsm sstable 文件的存放目录
-		WithMaxLevel(7),           // 7层 lsm tree
-		WithSSTSize(2*1024),       // level 0 层，每个 sstable 的大小为 1M
-		WithSSTDataBlockSize(512), // sstable 中，每个 block 大小为 16KB
-		WithSSTNumPerLevel(2),     // 每个 level 存放 10 个 sstable 文件
+		WithMaxLevel(7),              // 7层 lsm tree
+		WithSSTSize(32*1024),         // level 0 层，每个 sstable 的大小为 32KB
+		WithSSTDataBlockSize(2*1024), // sstable 中，每个 block 大小为 2KB
+		WithSSTNumPerLevel(4),        // 每个 level 存放 4 个 sstable 文件
 	)
 	if err != nil {
 		t.Error(err)
@@ -59,13 +60,15 @@ func Test_LSM(t *testing.T) {
 
 	for i := 65; i <= 122; i++ {
 		for j := 65; j <= 122; j++ {
-			kvs = append(kvs, struct {
-				key []byte
-				val []byte
-			}{
-				key: []byte{uint8(i), uint8(j)},
-				val: []byte{uint8(i), uint8(j)},
-			})
+			for k := 65; k <= 85; k++ {
+				kvs = append(kvs, struct {
+					key []byte
+					val []byte
+				}{
+					key: []byte{uint8(i), uint8(j), uint8(k)},
+					val: []byte{uint8(i), uint8(j), uint8(k)},
+				})
+			}
 		}
 	}
 
@@ -91,6 +94,8 @@ func Test_LSM(t *testing.T) {
 			return
 		}
 	}
+
+	<-time.After(time.Second)
 }
 
 func Test_Tree_getSortedSSTEntries(t *testing.T) {

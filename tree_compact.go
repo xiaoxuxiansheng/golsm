@@ -131,17 +131,17 @@ func (t *Tree) pickedNodesToKVs(pickedNodes []*Node) []*KV {
 
 func (t *Tree) removeNodes(level int, nodes []*Node) {
 outer:
-	for len(nodes) > 0 {
-		node := nodes[0]
-		nodes = nodes[1:]
-
+	for k := 0; k < len(nodes); k++ {
+		node := nodes[k]
 		for i := level + 1; i >= level; i-- {
 			for j := 0; j < len(t.nodes[i]); j++ {
 				if node != t.nodes[i][j] {
 					continue
 				}
 
+				t.levelLocks[i].Lock()
 				t.nodes[i] = append(t.nodes[i][:j], t.nodes[i][j+1:]...)
+				t.levelLocks[i].Unlock()
 				continue outer
 			}
 		}
@@ -208,7 +208,7 @@ func (t *Tree) tryTriggerCompact(level int) {
 		size += node.size
 	}
 
-	if size <= t.conf.SSTSize*uint64(math.Pow10(level+1))*uint64(t.conf.SSTNumPerLevel) {
+	if size <= t.conf.SSTSize*uint64(math.Pow10(level))*uint64(t.conf.SSTNumPerLevel) {
 		return
 	}
 
