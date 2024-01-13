@@ -155,6 +155,7 @@ outer:
 	}()
 }
 
+// 将只读 memtable 溢写落盘成为 level0 层 sstable 文件
 func (t *Tree) compactMemTable(memCompactItem *memTableCompactItem) {
 	// 处理 memtable 溢写工作:
 	// 1 memtable 溢写到 0 层 sstable 中
@@ -170,7 +171,7 @@ func (t *Tree) compactMemTable(memCompactItem *memTableCompactItem) {
 	}
 	t.dataLock.Unlock()
 
-	// 3 删除相应的预写日志
+	// 3 删除相应的预写日志. 因为 memtable 落盘后数据已经安全，不存在丢失风险
 	_ = os.Remove(memCompactItem.walFile)
 }
 

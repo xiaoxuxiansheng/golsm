@@ -113,7 +113,7 @@ func (t *Tree) Put(key, value []byte) error {
 	return nil
 }
 
-// 根据 key 读取数据.
+// 根据 key 读取数据
 func (t *Tree) Get(key []byte) ([]byte, bool, error) {
 	t.dataLock.RLock()
 	// 1 首先读 active memtable.
@@ -123,7 +123,7 @@ func (t *Tree) Get(key []byte) ([]byte, bool, error) {
 		return value, true, nil
 	}
 
-	// 2 读 readOnly memtable
+	// 2 读 readOnly memtable.  按照 index 倒序遍历，因为 index 越大，数据越晚写入，实时性越强
 	for i := len(t.rOnlyMemTable) - 1; i >= 0; i-- {
 		value, ok = t.rOnlyMemTable[i].memTable.Get(key)
 		if ok {
@@ -133,7 +133,7 @@ func (t *Tree) Get(key []byte) ([]byte, bool, error) {
 	}
 	t.dataLock.RUnlock()
 
-	// 3 读 sstable level0 层.
+	// 3 读 sstable level0 层. 按照 index 倒序遍历，因为 index 越大，数据越晚写入，实时性越强
 	var err error
 	t.levelLocks[0].RLock()
 	for i := len(t.nodes[0]) - 1; i >= 0; i-- {
@@ -148,7 +148,7 @@ func (t *Tree) Get(key []byte) ([]byte, bool, error) {
 	}
 	t.levelLocks[0].RUnlock()
 
-	// 4 依次读 sstable level 1 ~ i 层.
+	// 4 依次读 sstable level 1 ~ i 层，每层至多只需要和一个 sstable 交互. 因为这些 level 层中的 sstable 都是无重复数据且全局有序的
 	for level := 1; level < len(t.nodes); level++ {
 		t.levelLocks[level].RLock()
 		node, ok := t.levelBinarySearch(level, key, 0, len(t.nodes[level])-1)
