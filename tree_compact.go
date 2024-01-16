@@ -175,6 +175,7 @@ func (t *Tree) compactMemTable(memCompactItem *memTableCompactItem) {
 	_ = os.Remove(memCompactItem.walFile)
 }
 
+// 将 memtable 的数据溢写落盘到 level0 层成为一个新的 sst 文件
 func (t *Tree) flushMemTable(memTable memtable.MemTable) {
 	// memtable 写到 level 0 层 sstable 中
 	seq := t.levelToSeq[0].Load() + 1

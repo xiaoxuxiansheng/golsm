@@ -36,6 +36,7 @@ type SSTWriter struct {
 	prevBlockSize   uint64 // 前一个数据块的大小
 }
 
+// sstWriter 构造器
 func NewSSTWriter(file string, conf *Config) (*SSTWriter, error) {
 	dest, err := os.OpenFile(path.Join(conf.Dir, file), os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
