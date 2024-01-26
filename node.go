@@ -6,6 +6,7 @@ import (
 	"path"
 )
 
+// lsm tree 中的一个节点. 对应一个 sstables
 type Node struct {
 	conf          *Config           // 配置文件
 	file          string            // sstable 对应的文件名，不含目录路径
@@ -90,7 +91,7 @@ func (n *Node) Index() (level int, seq int32) {
 	return
 }
 
-func (n *Node) Destory() {
+func (n *Node) Destroy() {
 	n.sstReader.Close()
 	_ = os.Remove(path.Join(n.conf.Dir, n.file))
 }
