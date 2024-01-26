@@ -35,28 +35,37 @@ func (t *Tree) compact() {
 	}
 }
 
+// 针对 level 层进行排序归并操作
 func (t *Tree) compactLevel(level int) {
-	// 获取到 level 和 level + 1 层需要进行归并的节点
-	// 随着 index 递增，数据实时性递增
+	// 获取到 level 和 level + 1 层内需要进行本次归并的节点
 	pickedNodes := t.pickCompactNodes(level)
 
-	// 执行归并排序，得到多个节点，插入到下一层
+	// 插入到 level + 1 层对应的目标 sstWriter
 	seq := t.levelToSeq[level+1].Load() + 1
 	sstWriter, _ := NewSSTWriter(t.sstFile(level+1, seq), t.conf)
 	defer sstWriter.Close()
 
+	// 获取 level + 1 层每个 sst 文件的大小阈值
 	sstLimit := t.conf.SSTSize * uint64(math.Pow10(level+1))
+	// 获取本次排序归并的节点涉及到的所有 kv 数据
 	pickedKVs := t.pickedNodesToKVs(pickedNodes)
+	// 遍历每笔需要归并的 kv 数据
 	for i := 0; i < len(pickedKVs); i++ {
+		// 倘若新生成的 level + 1 层 sst 文件大小已经超限
 		if sstWriter.Size() > sstLimit {
+			// 将 sst 文件溢写落盘
 			size, blockToFilter, index := sstWriter.Finish()
+			// 将 sst 文件对应 node 插入到 lsm tree 内存结构中
 			t.insertNode(level+1, seq, size, blockToFilter, index)
+			// 构造一个新的 level + 1 层 sstWriter
 			seq = t.levelToSeq[level+1].Load() + 1
 			sstWriter, _ = NewSSTWriter(t.sstFile(level+1, seq), t.conf)
 			defer sstWriter.Close()
 		}
 
+		// 将 kv 数据追加到 sstWriter
 		sstWriter.Append(pickedKVs[i].Key, pickedKVs[i].Value)
+		// 倘若这是最后一笔 kv 数据，需要负责把 sstWriter 溢写落盘并把对应 node 插入到 lsm tree 内存结构中
 		if i == len(pickedKVs)-1 {
 			size, blockToFilter, index := sstWriter.Finish()
 			t.insertNode(level+1, seq, size, blockToFilter, index)
@@ -70,8 +79,9 @@ func (t *Tree) compactLevel(level int) {
 	t.tryTriggerCompact(level + 1)
 }
 
+// 获取本轮 compact 流程涉及到的所有节点，范围涵盖 level 和 level+1 层
 func (t *Tree) pickCompactNodes(level int) []*Node {
-	// 每次合并范围为前一半
+	// 每次合并范围为当前层前一半节点
 	startKey := t.nodes[level][0].Start()
 	endKey := t.nodes[level][0].End()
 
@@ -85,21 +95,14 @@ func (t *Tree) pickCompactNodes(level int) []*Node {
 	}
 
 	var pickedNodes []*Node
-	// [start,end] 和 level + 1 层有重叠范围的节点进行合并,得到新的 [start,end]
+	// 将 level 层和 level + 1 层 和 [start,end] 范围有重叠的节点进行合并
 	for i := level + 1; i >= level; i-- {
 		for j := 0; j < len(t.nodes[i]); j++ {
 			if bytes.Compare(endKey, t.nodes[i][j].Start()) < 0 || bytes.Compare(startKey, t.nodes[i][j].End()) > 0 {
 				continue
 			}
 
-			if bytes.Compare(t.nodes[i][j].Start(), startKey) < 0 {
-				startKey = t.nodes[i][j].Start()
-			}
-
-			if bytes.Compare(t.nodes[i][j].End(), endKey) > 0 {
-				endKey = t.nodes[i][j].End()
-			}
-
+			// 所有范围有重叠的节点都追加到 list
 			pickedNodes = append(pickedNodes, t.nodes[i][j])
 		}
 	}
@@ -107,8 +110,10 @@ func (t *Tree) pickCompactNodes(level int) []*Node {
 	return pickedNodes
 }
 
+// 获取本轮 compact 流程涉及到的所有 kv 对. 这个过程中可能存在重复 k，保证只保留最新的 v
 func (t *Tree) pickedNodesToKVs(pickedNodes []*Node) []*KV {
-	// index 越小，数据越久. 所以大 index 数据覆盖小 index 数据
+	// index 越小，数据越老. index 越大，数据越新
+	// 所以使用大 index 的数据覆盖小 index 数据，以久覆新
 	memtable := t.conf.MemTableConstructor()
 	for _, node := range pickedNodes {
 		kvs, _ := node.GetAll()
@@ -117,6 +122,7 @@ func (t *Tree) pickedNodesToKVs(pickedNodes []*Node) []*KV {
 		}
 	}
 
+	// 借助 memtable 实现有序排列
 	_kvs := memtable.All()
 	kvs := make([]*KV, 0, len(_kvs))
 	for _, kv := range _kvs {
@@ -129,7 +135,9 @@ func (t *Tree) pickedNodesToKVs(pickedNodes []*Node) []*KV {
 	return kvs
 }
 
+// 移除所有完成 compact 流程的老节点
 func (t *Tree) removeNodes(level int, nodes []*Node) {
+	// 从 lsm tree 的 nodes 中移除老节点
 outer:
 	for k := 0; k < len(nodes); k++ {
 		node := nodes[k]
@@ -148,9 +156,9 @@ outer:
 	}
 
 	go func() {
+		// 销毁老节点，包括关闭 sst reader，并且删除节点对应 sst 磁盘文件
 		for _, node := range nodes {
-			// 销毁节点
-			node.Destory()
+			node.Destroy()
 		}
 	}()
 }
@@ -218,13 +226,15 @@ func (t *Tree) tryTriggerCompact(level int) {
 	}()
 }
 
-func (t *Tree) insertNode(level int, seq int32, size uint64, blockToFilter map[uint64][]byte, index []*Index) {
+// 插入一个 node 到指定 level 层
+func (t *Tree) insertNodeWithReader(sstReader *SSTReader, level int, seq int32, size uint64, blockToFilter map[uint64][]byte, index []*Index) {
 	file := t.sstFile(level, seq)
-	sstReader, _ := NewSSTReader(file, t.conf)
-
+	// 记录当前 level 层对应的 seq 号（单调递增）
 	t.levelToSeq[level].Store(seq)
 
+	// 创建一个 lsm node
 	newNode := NewNode(t.conf, file, sstReader, level, seq, size, blockToFilter, index)
+	// 对于 level0 而言，只需要 append 插入 node 即可
 	if level == 0 {
 		t.levelLocks[0].Lock()
 		t.nodes[level] = append(t.nodes[level], newNode)
@@ -232,8 +242,9 @@ func (t *Tree) insertNode(level int, seq int32, size uint64, blockToFilter map[u
 		return
 	}
 
-	// 更底层，需要根据 key 大小进行插入
+	// 对于 level1~levelk 层，需要根据 node 中 key 的大小，遵循顺序插入
 	for i := 0; i < len(t.nodes[level])-1; i++ {
+		// 遵循从小到大的遍历顺序，找到首个最小 key 比 newNode 最大 key 还大的 node，将 newNode 插入在其之前
 		if bytes.Compare(newNode.End(), t.nodes[level][i+1].Start()) < 0 {
 			t.levelLocks[level].Lock()
 			t.nodes[level] = append(t.nodes[level][:i+1], t.nodes[level][i:]...)
@@ -243,9 +254,17 @@ func (t *Tree) insertNode(level int, seq int32, size uint64, blockToFilter map[u
 		}
 	}
 
+	// 遍历完 level 层所有节点都还没插入 newNode，说明 newNode 是该层 key 值最大的节点，则 append 到最后即可
 	t.levelLocks[level].Lock()
 	t.nodes[level] = append(t.nodes[level], newNode)
 	t.levelLocks[level].Unlock()
+}
+
+func (t *Tree) insertNode(level int, seq int32, size uint64, blockToFilter map[uint64][]byte, index []*Index) {
+	file := t.sstFile(level, seq)
+	sstReader, _ := NewSSTReader(file, t.conf)
+
+	t.insertNodeWithReader(sstReader, level, seq, size, blockToFilter, index)
 }
 
 func (t *Tree) sstFile(level int, seq int32) string {
