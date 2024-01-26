@@ -59,29 +59,36 @@ func (t *Tree) getSortedSSTEntries() ([]fs.DirEntry, error) {
 	return sstEntries, nil
 }
 
+// 将一个 sst 文件作为一个 node 加载进入 lsm tree 的拓扑结构中
 func (t *Tree) loadNode(sstEntry fs.DirEntry) error {
+	// 创建 sst 文件对应的 reader
 	sstReader, err := NewSSTReader(sstEntry.Name(), t.conf)
 	if err != nil {
 		return err
 	}
 
+	// 读取各 block 块对应的 filter 信息
 	blockToFilter, err := sstReader.ReadFilter()
 	if err != nil {
 		return err
 	}
 
+	// 读取 index 信息
 	index, err := sstReader.ReadIndex()
 	if err != nil {
 		return err
 	}
 
+	// 获取 sst 文件的大小，单位 byte
 	size, err := sstReader.Size()
 	if err != nil {
 		return err
 	}
 
+	// 解析 sst 文件名，得知 sst 文件对应的 level 以及 seq 号
 	level, seq := getLevelSeqFromSSTFile(sstEntry.Name())
-	t.insertNode(level, seq, size, blockToFilter, index)
+	// 将 sst 文件作为一个 node 插入到 lsm tree 中
+	t.insertNodeWithReader(sstReader, level, seq, size, blockToFilter, index)
 	return nil
 }
 
