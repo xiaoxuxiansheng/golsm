@@ -16,7 +16,7 @@
 <a href="https://mp.weixin.qq.com/s?__biz=MzkxMjQzMjA0OQ==&mid=2247484876&idx=1&sn=8514ad4dc0cc63bc5d193a194e81d7b6">实现篇一：基于go实现lsm tree 之主干框架</a> <br/><br/>
 <a href="https://mp.weixin.qq.com/s?__biz=MzkxMjQzMjA0OQ==&mid=2247484901&idx=1&sn=4177bd9d50a7e4ce3dddf12dec949006">实现篇二：基于go实现lsm tree之memtable结构</a> <br/><br/>
 <a href="https://mp.weixin.qq.com/s?__biz=MzkxMjQzMjA0OQ==&mid=2247484944&idx=1&sn=59cfa74943df0f3c5d597656b7c0b4e9">实现篇三：基于go实现lsm tree之sstable结构</a> <br/><br/>
-<a href="">实现篇四：基于go实现lsm tree之level sorted merge流程（待补充链接）</a>
+<a href="https://mp.weixin.qq.com/s?__biz=MzkxMjQzMjA0OQ==&mid=2247484945&idx=1&sn=b1553b217da8b7695af1967617a1ce16">实现篇四：基于go实现lsm tree之level sorted merge流程</a>
 
 ## 🖥 使用示例
 ```go
