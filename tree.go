@@ -197,11 +197,11 @@ func (t *Tree) levelBinarySearch(level int, key []byte, start, end int) (*Node, 
 	}
 
 	mid := start + (end-start)>>1
-	if bytes.Compare(t.nodes[level][start].endKey, key) < 0 {
+	if bytes.Compare(t.nodes[level][mid].endKey, key) < 0 {
 		return t.levelBinarySearch(level, key, mid+1, end)
 	}
 
-	if bytes.Compare(t.nodes[level][start].startKey, key) > 0 {
+	if bytes.Compare(t.nodes[level][mid].startKey, key) > 0 {
 		return t.levelBinarySearch(level, key, start, mid-1)
 	}
 
